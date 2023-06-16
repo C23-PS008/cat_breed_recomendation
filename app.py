@@ -19,9 +19,8 @@ load_dotenv()
 # Get the API key from the environment variable
 api_key = os.getenv('API_KEY')
 
-# Load the cosine similarity matrix
-with open('similarity_matrix.pkl', 'rb') as file:
-    similarity_matrix = pickle.load(file)
+# Initialize the similarity matrix
+similarity_matrix = None
 
 @app.route('/')
 def index():
@@ -51,16 +50,20 @@ def recommend():
         user_ratings_df = pd.DataFrame(user_ratings, index=[0])
         df_join = pd.concat([data, user_ratings_df], ignore_index=True)
 
+        # Compute the similarity matrix
+        global similarity_matrix
+        similarity_matrix = cosine_similarity(df_join[['family_friendly', 'shedding', 'general_health', 'playfulness', 'children_friendly', 'grooming', 'intelligence', 'other_pets_friendly']])
+
         user_index = df_join.shape[0] - 1
         similar_kitten_index = similarity_matrix[user_index].argsort()[:-1][::-1]
         
-        similar_kitten_index = similar_kitten_index[:10]
-
         similarities = similarity_matrix[user_index][similar_kitten_index]
+
+        top_five_cats = df_join.loc[similar_kitten_index[:5]]
 
         # Get the top 10 recommended cat breeds with characteristics, similarity scores, and breed images
         recommended_cat_breeds = []
-        for idx in similar_kitten_index:
+        for idx in top_five_cats.index:
             if idx < len(similarities):  # Check if idx is within the valid range
                 cat_breed = {
                     "breed": df_join.loc[idx, 'name'],
@@ -86,7 +89,7 @@ def recommend():
 
                 recommended_cat_breeds.append(cat_breed)
         
-        # Sort the recommended cat breeds by similarity score in descending order
+        # # Sort the recommended cat breeds by similarity score in descending order
         recommended_cat_breeds = sorted(recommended_cat_breeds, key=lambda x: x['similarity_score'], reverse=True)
 
         return jsonify(recommendations=recommended_cat_breeds)
